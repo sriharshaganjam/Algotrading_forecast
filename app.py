@@ -2,59 +2,42 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
 from datetime import date, timedelta
 
-# Define available trading strategies
-strategies = ["Moving Average Crossover", "Ichimoku Cloud", "Parabolic SAR"]
+# Streamlit App Title
+st.title("Indian Stock Investment Predictor")
 
-# List of Indian Sensex stock symbols (Example: Add more as needed)
-sensex_symbols = {
-    "Reliance Industries": "RELIANCE.NS",
-    "Tata Consultancy Services": "TCS.NS",
-    "HDFC Bank": "HDFCBANK.NS",
-    "Infosys": "INFY.NS",
-    "ICICI Bank": "ICICIBANK.NS"
-}
-
-st.title("AlgoTrading App for Indian Markets")
-
-# User inputs
-stock_choice = st.selectbox("Choose a stock:", list(sensex_symbols.keys()))
+# User Input: Stock Symbol & Investment Amount
+stock_symbol = st.text_input("Enter the Indian Stock Symbol (e.g., RELIANCE.NS):")
 investment_amount = st.number_input("Investment Amount (INR):", min_value=1000, step=500)
-strategy = st.selectbox("Select Trading Strategy:", strategies)
 
-# Fetch historical data (12 months)
-end_date = date.today()
-start_date = end_date - timedelta(days=365)
-stock_symbol = sensex_symbols[stock_choice]
-data = yf.download(stock_symbol, start=start_date, end=end_date)
-
-if not data.empty:
-    # Plot historical stock price
-    fig = go.Figure()
-    fig.add_trace(go.Candlestick(
-        x=data.index,
-        open=data['Open'],
-        high=data['High'],
-        low=data['Low'],
-        close=data['Close'],
-        name='Candlestick Chart'
-    ))
-    fig.update_layout(title=f"Historical Price Chart of {stock_choice} (INR)", xaxis_title="Date", yaxis_title="Price (INR)")
-    st.plotly_chart(fig)
-else:
-    st.warning("No data available for the selected stock.")
-
-# Forecasting Next Trading Day Opening Price
-last_close = data['Close'].iloc[-1]
-forecasted_open = last_close * np.random.uniform(0.98, 1.02)  # Adding slight variation for demo
-st.write(f"Forecasted Opening Price for Next Trading Day: INR {forecasted_open:.2f}")
-
-# Trading Decision: Buy or Sell
-if forecasted_open > last_close:
-    st.success("Recommendation: BUY")
-    expected_return = (forecasted_open - last_close) / last_close * investment_amount
-    st.write(f"Expected Return by End of Day: INR {expected_return:.2f}")
-else:
-    st.error("Recommendation: SELL")
+if stock_symbol and investment_amount:
+    try:
+        # Fetch historical data (1 year)
+        end_date = date.today()
+        start_date = end_date - timedelta(days=365)
+        data = yf.download(stock_symbol, start=start_date, end=end_date)
+        
+        if not data.empty:
+            # Calculate daily return
+            data['Return'] = data['Close'].pct_change()
+            avg_daily_return = data['Return'].mean()
+            std_dev = data['Return'].std()
+            
+            # Predict future values using a simple growth model
+            def predict_future_value(days):
+                return investment_amount * (1 + avg_daily_return) ** days
+            
+            one_day_value = predict_future_value(1)
+            one_month_value = predict_future_value(30)
+            one_year_value = predict_future_value(365)
+            
+            # Display Predictions
+            st.subheader("Investment Forecast")
+            st.write(f"Expected Value in 1 Day: **INR {one_day_value:.2f}**")
+            st.write(f"Expected Value in 1 Month: **INR {one_month_value:.2f}**")
+            st.write(f"Expected Value in 1 Year: **INR {one_year_value:.2f}**")
+        else:
+            st.warning("No data available for the entered stock symbol. Please check the symbol and try again.")
+    except Exception as e:
+        st.error(f"Error fetching stock data: {e}")
